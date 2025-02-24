@@ -1,13 +1,16 @@
-For my final project, I want to compare how the different chickadee species populations of the US have changed over time and compare that to climate change related data (temperatures, storms, etc.). I also want to compare the different species to eachother.
+Bailey Hatcher Final Project Idea
+
+Describe your idea for a data analysis final project:
+
+For my final project, I want to use the data collected from the Monitoring Avian Productivity and Survivorship (MAPS) project to compare the different Chickadee species in the United States. I am interested in how their species ranges have changed over time and in relation to one another (how have hybridization zones between the species changed?). I am also interested in analyzing how the populations have changed in response to climate change related factors (rising temperatures, major weather events, land cover and habitat changes, etc.). I expect their ranges to have moved north and up in elevation in response to raising temperatures.. These changes could include average weight, body measurements, fat content, population distribution of ages caught, etc. Another interesting factor I could analyze is survivorship by tracking recaptured birds.
+
+
+Describe the sort of data you will use, potential sources, and what the data might look like:
 
 I have downloaded a large dataset from The Institute for Bird Populations MAPS Data Exploration Tool (https://ibp-maps-data-exploration-tool.org/app/maps). This dataset includes data of five different Chickadee species (BCCH, BOCH, CACH, CBCH, MOCH) collected for the Monitoring Avian Productivity and Survivorship (MAPS) program between 1992-05-01 to 2018-08-12. There are 57414 rows (each a separate entry of a captured chickadee) and 48 columns (each containing different data collected about the chickadee encounter). 
 
-One of my main interests is to see how each of the different chickadee species populations have responded to raising temperatures over time and how their population ranges have changed. I expect the ranges to move northward and up in elevation. Here is a promising dataset for average monthly temperatures by US state: https://www.kaggle.com/datasets/justinrwong/average-monthly-temperature-by-us-state. I have also found an online interactive land cover model from https://apps.fs.usda.gov/lcms-viewer/ that could prove to be useful. 
-
-Questions I could answer:
-* How have the different chickadee ranges changed over time and in relation to one another? How does this relate to climate change (global temperatures, land cover changes)? How have the hybridization zones between the different chickadee species changed?
-* How have chickadee populations changed over time (weight, wing length, fat content, population age content)?
-* Could analyze survivorship (recaptures of banded birds).
+Here is a promising dataset for average monthly temperatures by US state: https://www.kaggle.com/datasets/justinrwong/average-monthly-temperature-by-us-state. I have also found an online interactive land cover model from https://apps.fs.usda.gov/lcms-viewer/ that could prove to be useful, but will need more exploring to understand.  
 
 
-I have completed an example plot and saved it to the Assignment_4 folder, along with this text file. 
+
+I have completed an example plot (chickadee_weights_plot.pdf) and saved it to the Assignment_4 folder, along with this text file. 

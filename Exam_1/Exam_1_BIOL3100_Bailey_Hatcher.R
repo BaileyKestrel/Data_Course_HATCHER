@@ -43,15 +43,6 @@ state_max_fatality_rate <- covid_data %>%
 # Arrange the new data frame in descending order by Maximum_Fatality_Ratio
 state_max_fatality_rate <- state_max_fatality_rate %>% 
   arrange(desc(Maximum_Fatality_Ratio))
-  
-
-
-
-
-
-
-
-
 
 
 # V. Use that new data frame from task IV to create another plot. (20 pts)
@@ -60,7 +51,6 @@ is.factor(state_max_fatality_rate$Province_State) #check if Province_State is fa
 # x-axis arranged in descending order, just like the data frame (make it a factor to accomplish this)
 state_max_fatality_rate <- state_max_fatality_rate %>% 
   mutate(Province_State = factor(Province_State, levels = Province_State))
-
 
 
 state_max_fatality_rate %>% 
