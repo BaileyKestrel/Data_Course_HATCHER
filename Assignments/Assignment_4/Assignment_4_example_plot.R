@@ -1,7 +1,7 @@
 library(tidyverse)
 library(ggplot2)
 
-chickadee_data <- read_csv("MAPS_data_download/MAPS_BANDING_capture_data.csv")
+chickadee_data <- read_csv("../../../Desktop/MAPS_data_download/MAPS_BANDING_capture_data.csv")
 str(chickadee_data)
 unique(chickadee_data$SPEC)
 
@@ -68,4 +68,6 @@ ggplot(chickadee_data, aes(x = AGE, fill = SPEC)) +
   scale_x_continuous(breaks = as.numeric(names(age_labels)), labels = age_labels) +
   labs(title = "Age Distribution of Chickadee Species", x = "Age Category", y = "Count") +
   theme_minimal() 
+
+
 
