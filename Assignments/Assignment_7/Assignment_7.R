@@ -1,0 +1,177 @@
+library(tidyverse)
+library(janitor)
+library(ggplot2)
+library(skimr)
+
+#### Import the Assignment_7/Utah_Religions_by_County.csv data set ####
+dat <- read.csv("Assignments/Assignment_7/Utah_Religions_by_County.csv")
+#View(dat)
+str(dat)
+
+#### Clean it up into “tidy” shape ####
+# clean names
+dat <- clean_names(dat)
+
+# convert to long format
+dat_clean <- dat %>% 
+  pivot_longer(cols = -c(county, pop_2010, religious, non_religious),
+               names_to = "religion",
+               values_to = "proportion")
+
+
+#### Explore the cleaned data set with a series of figures (I want to see you exploring the data set) ####
+
+str(dat_clean)
+
+#### Does population of a county correlate with the proportion of any specific religious group in that county? ####
+
+
+# Scatter plot of county population vs. religion proportion 
+plot_1 <- dat_clean %>% 
+  ggplot(aes(x = pop_2010, y = proportion, color = religion)) +
+  geom_point() +
+  geom_smooth(method = 'lm') +
+  scale_x_log10() + 
+  labs(title = "Population vs. Religion Proportion",
+       x = "Population (2010)",
+       y = "Proportion of Specific Religion") +
+  theme_minimal()
+
+plot_1
+
+## I decided to use logarithmic x values to spread out smaller counties and 
+## compress larger counties to make trends easier to compare.
+## It is easy to see that the lds religion dominates in proportion among all other
+## religions. To get a better understanding, I will facet into individual counties
+
+plot_2 <- dat_clean %>% 
+  ggplot(aes(x = pop_2010, y = proportion, color = religion)) +
+  geom_point() +
+  geom_smooth(method = 'lm') +
+  scale_x_log10() + 
+  facet_wrap(~ religion, scales = 'free_y') +
+  labs(title = " County Population vs. Religion Proportion",
+       x = "Population (2010)",
+       y = "Proportion of Specific Religion") +
+  theme_minimal()
+
+plot_2
+
+## assemblies_of_god, catholic, evangelical, muslim, pentecostal_church_of_god all 
+## have positive trendlines, suggesting a greater population does lead to a greater
+## proportion of these religions. The rest have pretty flat trendlines, suggesting
+## that population size does not have much effect on the proportion of the religion.
+## The confidence bands are larger on either side, thus suggesting that there is more
+## uncertainty in estimating trends for very small and very large populations.
+
+
+# calculate correlation between population size and religious proportion
+cor(dat_clean$pop_2010, dat_clean$proportion, use = "complete.obs")
+## there is a correlation index of 0.00456343, meaning there is essentially no 
+## linear correlation between population size and religious proportion, which 
+## matches up to what I see visually above (with some positive trendlines). 
+## These positive trendlines likely have little impact on overall correlation index
+## because the overall religion proportions are so small compared to lds and catholic
+
+dat_clean %>%
+  group_by(religion) %>%
+  summarise(correlation = cor(pop_2010, proportion, use = "complete.obs"))
+## the above code shows the correlation values of population and religion proportion
+## for each of the religions. 
+
+
+# Scatterplot of religious vs. non-religious proportions 
+plot_3 <- dat_clean %>% 
+  ggplot(aes(x = religious, y = non_religious)) +
+  geom_point() +
+  geom_smooth() +
+  labs(title = "Religious vs. Non-Religious Proportion",
+       x = "Proportion Religious",
+       y = "Proportion Non-Religious") +
+  theme_minimal()
+
+plot_3
+
+# calculate correlation between religious and non_religious
+cor(dat_clean$non_religious, dat_clean$religious, use = "complete.obs")
+
+## both plot_3 and the correlation check (results in -1) verify what is expected:
+## as the proportion of religious people increase, the proportion of non religious
+## decreases. This tells us that,at least in this sense, we can trust the data.
+## negative correlation. 
+
+
+
+
+#### Does proportion of any specific religion in a given county correlate with the proportion of non-religious people? ####
+
+# plot Non Religious Population vs. Religion Proportion
+plot_4 <- dat_clean %>% 
+  ggplot(aes(x = non_religious, y = proportion, color = religion)) +
+  geom_point() +
+  geom_smooth(method = 'lm') +
+  facet_wrap(~ religion, scale = "free_y") +
+  labs(
+    title = "Non Religious Population vs. Religion Proportion",
+    x = "Proportion of Non Religious Population",
+    y = "Proportion of Specific Religion",
+    color = "Religion") +
+  theme_minimal()
+
+plot_4  
+## This plot shows the different facets for each religion and its relationship with
+## the non religious population and religion proportion. The lds religion is the most
+## negatively correlated, while there are several religions that are positively correlated.
+
+
+# calculate Non Religious Population vs. Religion Proportion correlation
+cor(dat_clean$non_religious, dat_clean$proportion, use = "complete.obs")
+
+## the overall correlation between non religious population and religion proportion
+## is -0.04396084, indicating that there is a slight negative correlation.
+## as the proportion of non religious pop. increases, the proportion of specific
+## religion decreases (slightly). It appears that this is mostly due to the lds faith.
+
+
+# calc. correlation of non religious pop vs. religion proportion for each religion
+dat_clean %>%
+  group_by(religion) %>%
+  summarise(correlation = cor(non_religious, proportion, use = "complete.obs"))
+## this shows a better picture of each religion and its correlation index, with
+## lds having the most negative correlation (as the proportion of non religious
+## people increases in a population, the proportion of lds decreases). The
+## episcopal religion is a positive correlation (increases as non religious increases). 
+
+
+
+
+
+
+
+
+
+
+#### playing around ####
+str(dat_clean)
+
+# bar chart showing religion distribution by county
+dat_clean %>% 
+  ggplot(aes(x = county, y = proportion, fill = religion)) +
+  geom_col() +
+  labs(title = "Religion Distribution by County",
+    x = "County",
+    y = "Proportion") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90))
+
+## this plot shows that in all counties, the majority religion is lds. Some counties
+## also have higher proportion of missing data (white space).
+
+
+
+
+
+
+
+
+
