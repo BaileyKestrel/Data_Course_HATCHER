@@ -4,7 +4,7 @@ library(ggplot2)
 library(skimr)
 
 #### Import the Assignment_7/Utah_Religions_by_County.csv data set ####
-dat <- read.csv("Assignments/Assignment_7/Utah_Religions_by_County.csv")
+dat <- read.csv("Utah_Religions_by_County.csv")
 #View(dat)
 str(dat)
 
@@ -141,12 +141,6 @@ dat_clean %>%
 ## lds having the most negative correlation (as the proportion of non religious
 ## people increases in a population, the proportion of lds decreases). The
 ## episcopal religion is a positive correlation (increases as non religious increases). 
-
-
-
-
-
-
 
 
 
