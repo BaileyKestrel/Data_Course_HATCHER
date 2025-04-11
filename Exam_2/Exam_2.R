@@ -43,7 +43,7 @@ plot_1
 
 
 # 4. save this plot as LASTNAME_Plot_1.png
-ggsave("Hatcher_Plot_1.png", plot = plot_1, bg = "white")
+ggsave("HATCHER_Plot_1.png", plot = plot_1, bg = "white")
 
 
 # 5. Create another plot that shows the mean U5MR for all the countries within a 
