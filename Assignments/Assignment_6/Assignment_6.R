@@ -5,7 +5,7 @@ library(skimr)
 library(gganimate)
 
 # load csv file into new object and view
-dat <- read.csv("Data/BioLog_Plate_Data.csv")
+dat <- read.csv("../../Data/BioLog_Plate_Data.csv")
 View(dat)
 
 #### 1. clean data into tidy (long) form ####
