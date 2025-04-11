@@ -12,7 +12,7 @@ library(ggplot2)
 library(janitor)
 library(easystats)
 # 1. read in the UNICEF data
-dat <- read.csv("Exam_2/unicef-u5mr.csv")
+dat <- read.csv("unicef-u5mr.csv")
 str(dat)
 
 
@@ -22,7 +22,7 @@ clean_dat <- dat %>%
                names_to = "date",
                values_to = "U5MR") %>% 
   mutate(date = str_remove(date, "U5MR\\.") %>% as.integer()) %>% 
-  clean_names()
+  janitor::clean_names()
 
 
 # 3. plot each country's U5MR over time
@@ -43,7 +43,7 @@ plot_1
 
 
 # 4. save this plot as LASTNAME_Plot_1.png
-ggsave("Exam_2/Hatcher_Plot_1.png", plot = plot_1, bg = "white")
+ggsave("Hatcher_Plot_1.png", plot = plot_1, bg = "white")
 
 
 # 5. Create another plot that shows the mean U5MR for all the countries within a 
@@ -67,7 +67,7 @@ plot_2 <- dat_mean %>%
 plot_2
 
 # 6. Save that plot as LASTNAME_Plot_2.png 
-ggsave("Exam_2/HATCHER_Plot_2.png", plot = plot_2, bg = "white")
+ggsave("HATCHER_Plot_2.png", plot = plot_2, bg = "white")
 
 
 # 7. Create three models of U5MR 
