@@ -76,67 +76,220 @@ dms_to_dd <- function(dms_str) {
   })
 }
 
-
+# apply the conversion formula dms_to_dd to latitude and longitude columns
 filtered_data$latitude <- dms_to_dd(filtered_data$latitude)
 filtered_data$longitude <- dms_to_dd(filtered_data$longitude)
 
 
+# change date format and create new columns for year, month, day
+filtered_data <- filtered_data %>%
+  mutate(date = as.Date(date),
+         year = year(date),
+         month = month(date),
+         day = day(date))
+
+# Clean data
+filtered_data_clean <- filtered_data %>%
+  filter(!is.na(longitude), !is.na(latitude))
 
 
 
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+# Base map of US and Canada
 library(maps)
-us <- map_data("state")
+
+map_data_all <- map_data("world")
+north_america <- map_data_all %>% 
+  filter(region %in% c("USA", "Canada"))
+
+
+# create simple scatter plot
+ggplot() +
+  geom_polygon(data = north_america, aes(x = long, y = lat, group = group),
+               fill = "gray95", color = "gray70") +
+  geom_jitter(data = filtered_data,
+              aes(x = longitude, y = latitude, color = species),
+              alpha = 0.2, size = 1, width = 0.2, height = 0.2) +
+  coord_cartesian(xlim = c(-180, -50), ylim = c(25, 75)) +
+  theme_minimal()
+
+
+
+
+
+color_palette_named <- c("BCCH" = "#F0E442",
+                   "BOCH" = "#56B4E9",
+                   "CACH" = "#009E73",
+                   "CBCC" = "hotpink",
+                   "CBCH" = "#0072B2",
+                   "MOCH" = "#D55E09") 
 
 ggplot() +
-  geom_polygon(data = us, aes(x = long, y = lat, group = group),
+  geom_polygon(data = north_america, aes(x = long, y = lat, group = group),
                fill = "gray95", color = "gray70") +
-  geom_point(data = filtered_data, 
-             aes(x = longitude, y = latitude, color = species),
-             alpha = 0.6) +
+  geom_jitter(data = filtered_data,
+              aes(x = longitude, y = latitude, fill = species),  # use fill for inside color
+              shape = 21, size = 4,
+              alpha = 0.2, stroke = 0.2,
+              color = "black", width = 0.2, height = 0.2) +  # color = outline
+  coord_cartesian(xlim = c(-180, -50), ylim = c(25, 75)) +
+  theme_minimal() +
+  guides(fill = guide_legend(override.aes = list(alpha = 1, size = 2))) +
+  scale_fill_manual(values = color_palette_named)
+
+
+
+
+
+
+
+
+# faceted heat map
+library(ggthemes)
+
+ggplot() +
+  geom_polygon(data = north_america, aes(x = long, y = lat, group = group),
+               fill = "gray95", color = "gray70") +
+  geom_hex(data = filtered_data,
+           aes(x = longitude, y = latitude, fill = ..count..),
+           bins = 70, alpha = 0.7) +
+  scale_fill_viridis_c(option = "plasma") +
+  coord_cartesian(xlim = c(-180, -50), ylim = c(25, 75)) +
+  facet_wrap(~species) +
+  theme_minimal()
+
+
+
+# animated heat map faceted by species
+library(ggthemes)
+library(gganimate)
+
+filtered_data_clean <- filtered_data %>%
+  filter(!is.na(longitude), !is.na(latitude), !is.na(year)) %>%
+  mutate(year = as.integer(year))
+
+anim_plot <- ggplot() +
+  geom_polygon(data = north_america, aes(x = long, y = lat, group = group),
+               fill = "gray95", color = "gray70") +
+  geom_hex(data = filtered_data_clean,
+           aes(x = longitude, y = latitude, fill = ..count..),
+           bins = 70, alpha = 0.7) +
+  scale_fill_viridis_c(option = "plasma") +
+  coord_cartesian(xlim = c(-180, -50), ylim = c(25, 75)) +
+  facet_wrap(~species) +
+  theme_minimal(base_size = 14) +
+  labs(title = 'Year: {current_frame}', 
+       subtitle = 'Species density in North America',
+       fill = "Capture Count") +
+  transition_manual(year)
+
+# Animate
+animate(anim_plot, nframes = 100, fps = 10, width = 1000, height = 800, renderer = gifski_renderer())
+animation <- animate(anim_plot, nframes = 100, fps = 10, width = 1000, height = 800, renderer = gifski_renderer())
+anim_save("species_density_over_time.gif", animation)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# create convex hull plot
+# Compute convex hulls
+hulls <- filtered_data_clean %>%
+  group_by(species) %>%
+  filter(n() >= 3) %>%  # chull requires at least 3 points
+  slice(chull(longitude, latitude))
+
+# Plot
+ggplot() +
+  geom_polygon(data = north_america, aes(x = long, y = lat, group = group),
+               fill = "gray95", color = "gray70") +
+  geom_polygon(data = hulls, aes(x = longitude, y = latitude, fill = species, group = species),
+               alpha = 0.3, color = "black") +
   coord_fixed(1.3) +
   theme_minimal() +
-  labs(title = "Chickadee MAPS Locations on U.S. Map")
+  labs(title = "Estimated Chickadee Ranges by Convex Hull",
+       fill = "Species")
 
 
 
 
-ggplot(filtered_data, aes(x = longitude, y = latitude, color = species)) +
-  geom_point(alpha = 0.5) +
-  coord_fixed() +
-  facet_wrap(~sex) +
+
+
+
+# create a concave hull (alpha shape)
+library(concaveman)
+library(tidyverse)
+library(maps)
+
+# Compute concave hulls (alpha shapes)
+alpha_hulls <- filtered_data_clean %>%
+  group_by(species) %>%
+  filter(n() >= 3) %>%
+  group_split() %>%
+  map_dfr(~ {
+    # Extract longitude and latitude as a matrix
+    hull <- concaveman(as.matrix(.x[, c("longitude", "latitude")]))
+    
+    # Convert the hull result to a data frame
+    hull_df <- data.frame(longitude = hull[, 1], latitude = hull[, 2], species = unique(.x$species))
+    
+    return(hull_df)
+  })
+
+# Plot
+ggplot() +
+  geom_polygon(data = north_america, aes(x = long, y = lat, group = group),
+               fill = "gray95", color = "gray70") +
+  geom_polygon(data = alpha_hulls, aes(x = longitude, y = latitude, fill = species, group = species),
+               alpha = 0.3, color = "black") +
+  coord_fixed(1.3) +
   theme_minimal() +
-  labs(title = "Chickadee Species Ranges Over Time")
+  labs(title = "Estimated Chickadee Ranges by Concave Hull (Alpha Shape)",
+       fill = "Species", color = "Species")
 
 
-skim(filtered_data)
 
-# remove rows with NA for band_num
-filtered_data <- filtered_data %>% 
-  filter(!is.na(band_num))
 
-# create data set with just the recaptured birds
-recap_data <- chickadee_thin %>% 
-  filter(capture_code == "R")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
