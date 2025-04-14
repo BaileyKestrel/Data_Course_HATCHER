@@ -39,16 +39,23 @@ filtered_data <- joined_data %>%
          fat = F, 
          body_molt = BM, 
          flight_molt = FM, 
-         fliht_wear = FW, 
+         flight_wear = FW, 
          juvenal_p = JP, 
          weight_g = WEIGHT,
          wing_mm = WNG,
          status = STATUS, 
          disposition = DISP, 
-         breed_stat = BRSTAT)
+         breed_stat = BRSTAT) %>% 
+  mutate(species_name = recode(species,
+                          "BCCH" = "Black-Capped",
+                          "BOCH" = "Boreal",
+                          "CACH" = "Carolina",
+                          "CBCC" = "Carolina x Black-Capped",
+                          "CBCH" = "Chestnut-Backed",
+                          "MOCH" = "Mountain"))
   
 
-
+####Chickadee Distribution####
 # define function that converts Degrees Minutes Seconds (DMS) to Decimal Degrees (DD)
 # function header defines function named dms_to_dd that takes argument: dms_str
 dms_to_dd <- function(dms_str) { 
@@ -71,15 +78,13 @@ dms_to_dd <- function(dms_str) {
     
     # Convert to decimal degrees
     dd <- sign * (deg + min / 60 + sec / 3600)
-    # return result so it can be used outside this formula
-    return(dd)
+    return(dd) # return result so it can be used outside this formula
   })
 }
 
 # apply the conversion formula dms_to_dd to latitude and longitude columns
 filtered_data$latitude <- dms_to_dd(filtered_data$latitude)
 filtered_data$longitude <- dms_to_dd(filtered_data$longitude)
-
 
 # change date format and create new columns for year, month, day
 filtered_data <- filtered_data %>%
@@ -88,56 +93,45 @@ filtered_data <- filtered_data %>%
          month = month(date),
          day = day(date))
 
-# Clean data
-filtered_data_clean <- filtered_data %>%
+# remove NA from necessary columns
+filtered_data_cord <- filtered_data %>%
   filter(!is.na(longitude), !is.na(latitude))
 
 
 
 
-
-
-# Base map of US and Canada
+# Create a base map of US and Canada for use in other plots
 library(maps)
-
-map_data_all <- map_data("world")
-north_america <- map_data_all %>% 
+map_world <- map_data("world")
+north_america <- map_world %>% 
   filter(region %in% c("USA", "Canada"))
 
 
-# create simple scatter plot
-ggplot() +
-  geom_polygon(data = north_america, aes(x = long, y = lat, group = group),
-               fill = "gray95", color = "gray70") +
-  geom_jitter(data = filtered_data,
-              aes(x = longitude, y = latitude, color = species),
-              alpha = 0.2, size = 1, width = 0.2, height = 0.2) +
-  coord_cartesian(xlim = c(-180, -50), ylim = c(25, 75)) +
-  theme_minimal()
 
-
-
-
-
-color_palette_named <- c("BCCH" = "#F0E442",
+# create color palette that is high contrast and color blind friendly
+color_palette <- c("BCCH" = "#F0E442",
                    "BOCH" = "#56B4E9",
                    "CACH" = "#009E73",
                    "CBCC" = "hotpink",
                    "CBCH" = "#0072B2",
                    "MOCH" = "#D55E09") 
 
+# create scatter plot of all chickadee capture data
 ggplot() +
+  # create base map 
   geom_polygon(data = north_america, aes(x = long, y = lat, group = group),
                fill = "gray95", color = "gray70") +
-  geom_jitter(data = filtered_data,
-              aes(x = longitude, y = latitude, fill = species),  # use fill for inside color
-              shape = 21, size = 4,
-              alpha = 0.2, stroke = 0.2,
-              color = "black", width = 0.2, height = 0.2) +  # color = outline
-  coord_cartesian(xlim = c(-180, -50), ylim = c(25, 75)) +
+  # jitter points to avoid overlapping points (MAPS stations are stationary)
+  geom_jitter(data = filtered_data_cord,
+              aes(x = longitude, y = latitude, fill = species),
+              shape = 21, size = 3.5,
+              alpha = 0.2, stroke = 0.3,
+              color = "black", width = 0.2, height = 0.2) +
+  coord_cartesian(xlim = c(-175, -50), ylim = c(25, 75)) +
+  labs(x = "Longitude", y = "Latitude") +
   theme_minimal() +
-  guides(fill = guide_legend(override.aes = list(alpha = 1, size = 2))) +
-  scale_fill_manual(values = color_palette_named)
+  guides(fill = guide_legend(override.aes = list(alpha = 1, size = 5))) +
+  scale_fill_manual(values = color_palette)
 
 
 
@@ -146,34 +140,34 @@ ggplot() +
 
 
 
-# faceted heat map
+# faceted hexbin map of all chickadee captures
 library(ggthemes)
 
 ggplot() +
   geom_polygon(data = north_america, aes(x = long, y = lat, group = group),
-               fill = "gray95", color = "gray70") +
-  geom_hex(data = filtered_data,
+               fill = "gray90", color = "gray70") +
+  geom_hex(data = filtered_data_cord,
            aes(x = longitude, y = latitude, fill = ..count..),
            bins = 70, alpha = 0.7) +
+  labs(x = "Longitude", y = "Latitude", title = "Title") +
   scale_fill_viridis_c(option = "plasma") +
-  coord_cartesian(xlim = c(-180, -50), ylim = c(25, 75)) +
+  coord_cartesian(xlim = c(-175, -50), ylim = c(25, 75)) +
   facet_wrap(~species) +
   theme_minimal()
 
 
 
-# animated heat map faceted by species
-library(ggthemes)
+# animated hexbin map of all chickadee captures over time faceted by species 
 library(gganimate)
 
-filtered_data_clean <- filtered_data %>%
-  filter(!is.na(longitude), !is.na(latitude), !is.na(year)) %>%
+# filter out d
+filtered_data_year <- filtered_data %>% filter(!is.na(year)) %>%
   mutate(year = as.integer(year))
 
 anim_plot <- ggplot() +
   geom_polygon(data = north_america, aes(x = long, y = lat, group = group),
                fill = "gray95", color = "gray70") +
-  geom_hex(data = filtered_data_clean,
+  geom_hex(data = filtered_data_year,
            aes(x = longitude, y = latitude, fill = ..count..),
            bins = 70, alpha = 0.7) +
   scale_fill_viridis_c(option = "plasma") +
@@ -186,24 +180,8 @@ anim_plot <- ggplot() +
   transition_manual(year)
 
 # Animate
-animate(anim_plot, nframes = 100, fps = 10, width = 1000, height = 800, renderer = gifski_renderer())
-animation <- animate(anim_plot, nframes = 100, fps = 10, width = 1000, height = 800, renderer = gifski_renderer())
-anim_save("species_density_over_time.gif", animation)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+animate(anim_plot, nframes = 100, fps = 10, width = 1000, height = 800, 
+        renderer = gifski_renderer())
 
 
 
@@ -217,8 +195,13 @@ anim_save("species_density_over_time.gif", animation)
 
 
 # create convex hull plot
+# high contrast and color blind friendly palette
+tol_high_contrast <- c(
+  "#EE7733", "#0077BB", "#33BBEE", "#009988",
+  "#CC3311", "#EE3377"
+)
 # Compute convex hulls
-hulls <- filtered_data_clean %>%
+hulls <- filtered_data_cord %>%
   group_by(species) %>%
   filter(n() >= 3) %>%  # chull requires at least 3 points
   slice(chull(longitude, latitude))
@@ -226,11 +209,12 @@ hulls <- filtered_data_clean %>%
 # Plot
 ggplot() +
   geom_polygon(data = north_america, aes(x = long, y = lat, group = group),
-               fill = "gray95", color = "gray70") +
+               fill = "gray95", color = "gray50") +
   geom_polygon(data = hulls, aes(x = longitude, y = latitude, fill = species, group = species),
-               alpha = 0.3, color = "black") +
-  coord_fixed(1.3) +
+               alpha = 0.7, color = "black") +
+  coord_cartesian(xlim = c(-175, -50), ylim = c(25, 75)) +
   theme_minimal() +
+  scale_fill_manual(values = tol_high_contrast) +
   labs(title = "Estimated Chickadee Ranges by Convex Hull",
        fill = "Species")
 
@@ -242,8 +226,6 @@ ggplot() +
 
 # create a concave hull (alpha shape)
 library(concaveman)
-library(tidyverse)
-library(maps)
 
 # Compute concave hulls (alpha shapes)
 alpha_hulls <- filtered_data_clean %>%
@@ -263,13 +245,61 @@ alpha_hulls <- filtered_data_clean %>%
 # Plot
 ggplot() +
   geom_polygon(data = north_america, aes(x = long, y = lat, group = group),
-               fill = "gray95", color = "gray70") +
+               fill = "gray95", color = "gray50") +
   geom_polygon(data = alpha_hulls, aes(x = longitude, y = latitude, fill = species, group = species),
-               alpha = 0.3, color = "black") +
-  coord_fixed(1.3) +
+               alpha = 0.7, color = "black") +
+  coord_cartesian(xlim = c(-175, -50), ylim = c(25, 75)) +
   theme_minimal() +
+  scale_fill_manual(values = tol_high_contrast) +
   labs(title = "Estimated Chickadee Ranges by Concave Hull (Alpha Shape)",
        fill = "Species", color = "Species")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#### Chickadee Survivorship ####
+filtered_data_recap <- filtered_data %>% 
+  filter(!is.na(band_num))
+
+filtered_data_recap$recaptured <- ifelse(filtered_data_recap$capture_code == "R", 1, 0)
 
 
 
