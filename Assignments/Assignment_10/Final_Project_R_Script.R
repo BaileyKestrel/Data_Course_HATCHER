@@ -1,7 +1,10 @@
 library(tidyverse)
 library(ggplot2)
-library(skimr)
 library(janitor)
+library(maps)
+library(ggthemes)
+library(gganimate)
+library(concaveman)
 
 # load in MAPS data sets
 capture_data <- read_csv("MAPS_BANDING_capture_data.csv")
@@ -12,48 +15,12 @@ joined_data <- left_join(capture_data, location_data,
                          by = c("LOC", "STA", "STATION"))
 
 # select columns of interest and rename columns for better understanding
-filtered_data <- joined_data %>% 
-  select(STASLIST, STATE, LATITUDE, LONGITUDE, ELEV, HABITAT, LOC, STA, STATION, 
-         BCR, DATE, C, BAND, SPEC, AGE, HA, SEX, HS, SK, CP, BP, F, BM, FM, FW, 
-         JP, WEIGHT, WNG, STATUS, DISP, BRSTAT) %>% 
-  rename(staslist = STASLIST,
-         latitude = LATITUDE, 
-         longitude = LONGITUDE, 
-         elevation = ELEV, 
-         habitat = HABITAT, 
-         location = LOC, 
-         station_num = STA, 
-         station_code = STATION, 
-         conserv_reg = BCR, 
-         date = DATE, 
-         capture_code = C, 
-         band_num = BAND, 
-         species = SPEC, 
-         age = AGE, 
-         aged_how = HA, 
-         sex = SEX, 
-         sexed_how = HS, 
-         skull_pneum = SK, 
-         cloacal_p = CP, 
-         broodpatch = BP, 
-         fat = F, 
-         body_molt = BM, 
-         flight_molt = FM, 
-         flight_wear = FW, 
-         juvenal_p = JP, 
-         weight_g = WEIGHT,
-         wing_mm = WNG,
-         status = STATUS, 
-         disposition = DISP, 
-         breed_stat = BRSTAT) %>% 
-  mutate(species_name = recode(species,
-                          "BCCH" = "Black-Capped",
-                          "BOCH" = "Boreal",
-                          "CACH" = "Carolina",
-                          "CBCC" = "Carolina x Black-Capped",
-                          "CBCH" = "Chestnut-Backed",
-                          "MOCH" = "Mountain"))
-  
+dat <- joined_data %>% 
+  select(LATITUDE, LONGITUDE, LOC, STA, STATION, DATE, C, BAND, SPEC, AGE, SEX, 
+         F, STATUS) %>% 
+  rename(latitude = LATITUDE, longitude = LONGITUDE, location = LOC, station_num 
+         = STA, station_code = STATION, date = DATE, capture_code = C, band_num 
+         = BAND, species = SPEC, age = AGE, sex = SEX, fat = F, status = STATUS)
 
 ####Chickadee Distribution####
 # define function that converts Degrees Minutes Seconds (DMS) to Decimal Degrees (DD)
@@ -83,25 +50,24 @@ dms_to_dd <- function(dms_str) {
 }
 
 # apply the conversion formula dms_to_dd to latitude and longitude columns
-filtered_data$latitude <- dms_to_dd(filtered_data$latitude)
-filtered_data$longitude <- dms_to_dd(filtered_data$longitude)
+dat$latitude <- dms_to_dd(dat$latitude)
+dat$longitude <- dms_to_dd(dat$longitude)
 
 # change date format and create new columns for year, month, day
-filtered_data <- filtered_data %>%
+dat <- dat %>%
   mutate(date = as.Date(date),
          year = year(date),
          month = month(date),
          day = day(date))
 
 # remove NA from necessary columns
-filtered_data_cord <- filtered_data %>%
+dat_latlong <- dat %>%
   filter(!is.na(longitude), !is.na(latitude))
 
 
 
 
 # Create a base map of US and Canada for use in other plots
-library(maps)
 map_world <- map_data("world")
 north_america <- map_world %>% 
   filter(region %in% c("USA", "Canada"))
@@ -116,13 +82,17 @@ color_palette <- c("BCCH" = "#F0E442",
                    "CBCH" = "#0072B2",
                    "MOCH" = "#D55E09") 
 
+# remove NA from necessary columns
+dat_latlong <- dat %>%
+  filter(!is.na(longitude), !is.na(latitude))
+
 # create scatter plot of all chickadee capture data
 ggplot() +
   # create base map 
   geom_polygon(data = north_america, aes(x = long, y = lat, group = group),
                fill = "gray95", color = "gray70") +
   # jitter points to avoid overlapping points (MAPS stations are stationary)
-  geom_jitter(data = filtered_data_cord,
+  geom_jitter(data = dat_latlong,
               aes(x = longitude, y = latitude, fill = species),
               shape = 21, size = 3.5,
               alpha = 0.2, stroke = 0.3,
@@ -141,12 +111,10 @@ ggplot() +
 
 
 # faceted hexbin map of all chickadee captures
-library(ggthemes)
-
 ggplot() +
   geom_polygon(data = north_america, aes(x = long, y = lat, group = group),
                fill = "gray90", color = "gray70") +
-  geom_hex(data = filtered_data_cord,
+  geom_hex(data = dat_latlong,
            aes(x = longitude, y = latitude, fill = ..count..),
            bins = 70, alpha = 0.7) +
   labs(x = "Longitude", y = "Latitude", title = "Title") +
@@ -158,16 +126,13 @@ ggplot() +
 
 
 # animated hexbin map of all chickadee captures over time faceted by species 
-library(gganimate)
-
-# filter out d
-filtered_data_year <- filtered_data %>% filter(!is.na(year)) %>%
+dat_year <- dat %>% filter(!is.na(year)) %>%
   mutate(year = as.integer(year))
 
 anim_plot <- ggplot() +
   geom_polygon(data = north_america, aes(x = long, y = lat, group = group),
                fill = "gray95", color = "gray70") +
-  geom_hex(data = filtered_data_year,
+  geom_hex(data = dat_year,
            aes(x = longitude, y = latitude, fill = ..count..),
            bins = 70, alpha = 0.7) +
   scale_fill_viridis_c(option = "plasma") +
@@ -196,12 +161,12 @@ animate(anim_plot, nframes = 100, fps = 10, width = 1000, height = 800,
 
 # create convex hull plot
 # high contrast and color blind friendly palette
-tol_high_contrast <- c(
+high_contrast <- c(
   "#EE7733", "#0077BB", "#33BBEE", "#009988",
   "#CC3311", "#EE3377"
 )
 # Compute convex hulls
-hulls <- filtered_data_cord %>%
+hulls <- dat_latlong %>%
   group_by(species) %>%
   filter(n() >= 3) %>%  # chull requires at least 3 points
   slice(chull(longitude, latitude))
@@ -214,8 +179,9 @@ ggplot() +
                alpha = 0.7, color = "black") +
   coord_cartesian(xlim = c(-175, -50), ylim = c(25, 75)) +
   theme_minimal() +
-  scale_fill_manual(values = tol_high_contrast) +
+  scale_fill_manual(values = high_contrast) +
   labs(title = "Estimated Chickadee Ranges by Convex Hull",
+       x = "Longitude", y = "Latitude",
        fill = "Species")
 
 
@@ -225,10 +191,7 @@ ggplot() +
 
 
 # create a concave hull (alpha shape)
-library(concaveman)
-
-# Compute concave hulls (alpha shapes)
-alpha_hulls <- filtered_data_clean %>%
+alpha_hulls <- dat_latlong %>%
   group_by(species) %>%
   filter(n() >= 3) %>%
   group_split() %>%
@@ -250,91 +213,80 @@ ggplot() +
                alpha = 0.7, color = "black") +
   coord_cartesian(xlim = c(-175, -50), ylim = c(25, 75)) +
   theme_minimal() +
-  scale_fill_manual(values = tol_high_contrast) +
+  scale_fill_manual(values = high_contrast) +
   labs(title = "Estimated Chickadee Ranges by Concave Hull (Alpha Shape)",
+       x = "Longitude", y = "Latitude",
        fill = "Species", color = "Species")
 
 
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#### Chickadee Survivorship ####
-filtered_data_recap <- filtered_data %>% 
-  filter(!is.na(band_num))
-
-filtered_data_recap$recaptured <- ifelse(filtered_data_recap$capture_code == "R", 1, 0)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+#### Chickadee Count/Proportion Comparison ####
+
+species_year_props <- dat %>%
+  group_by(year, species) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  group_by(year) %>%
+  mutate(prop = n / sum(n))
+
+ggplot(species_year_props, aes(x = year, y = prop, fill = species)) +
+  geom_area() +
+  labs(
+    y = "Proportion",
+    title = "Proportional Abundance of Chickadee Species Over Time",
+    x = "Year", y = "Proportion") +
+  theme_minimal() +
+  scale_fill_manual(values = color_palette)
+
+
+species_year_counts <- dat %>%
+  group_by(year, species) %>%
+  summarise(count = n(), .groups = "drop")
+
+ggplot(species_year_counts, aes(x = year, y = count, fill = species)) +
+  geom_area() +
+  labs(
+    title = "Chickadee Species Counts Over Time",
+    x = "Year",
+    y = "Count",
+    fill = "Species"
+  ) +
+  theme_minimal() +
+  scale_fill_manual(values = color_palette)
+
+
+
+#### Chickadee Recapture ####
+
+# identify band codes that were recaptured at least once
+recaptured_ids <- dat %>%
+  filter(capture_code == "R") %>%
+  distinct(band_num)
+
+# create new variable if a bird was ever recaptured 
+dat <- dat %>%
+  mutate(ever_recaptured = ifelse(band_num %in% recaptured_ids$band_num, "Recaptured", "Not Recaptured"))
+
+# find the first capture event
+first_capture_of_recaptures <- dat %>%
+  semi_join(recaptured_ids, by = "band_num") %>%  # Only birds that were recaptured
+  group_by(band_num) %>%
+  slice_min(order_by = year, n = 1, with_ties = FALSE) %>%  # Get first capture per bird
+  ungroup()
+
+# count by species and year
+recaptured_unique_counts <- first_capture_of_recaptures %>%
+  group_by(year, species) %>%
+  summarise(unique_recaptures = n(), .groups = "drop")
+# plot
+ggplot(recaptured_unique_counts, aes(x = year, y = unique_recaptures, fill = species)) +
+  geom_area() +
+  labs(
+    title = "Unique Recaptured Chickadees by Species Over Time",
+    x = "Year",
+    y = "Count of Recaptured Individuals",
+    fill = "Species"
+  ) +
+  theme_minimal() +
+  scale_fill_manual(values = color_palette)

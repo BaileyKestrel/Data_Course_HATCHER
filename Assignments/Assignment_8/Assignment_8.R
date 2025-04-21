@@ -2,7 +2,7 @@ library(tidyverse)
 library(ggplot2)
 library()
 # 1. load the “/Data/mushroom_growth.csv” data set
-dat <- read_csv("Data/mushroom_growth.csv")
+dat <- read.csv("../../Data/mushroom_growth.csv")
 str(dat)
 
 

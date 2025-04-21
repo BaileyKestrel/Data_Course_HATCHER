@@ -1,0 +1,353 @@
+---
+title: "Chickadee Species Analysis from MAPS Banding Data"
+author: "Bailey Hatcher"
+date: "2025-04-15"
+output:
+  html_document:
+    theme: flatly
+    fig_width: 10
+    fig_height: 6
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+library(tidyverse)
+library(ggplot2)
+library(janitor)
+library(maps)
+library(ggthemes)
+library(gganimate)
+library(concaveman)
+library(lubridate)
+```
+
+
+## Introduction: MAPS Banding
+
+This project explores capture and recapture data for six chickadee species across North America using the MAPS (Monitoring Avian Productivity and Survivorship) dataset. The goal is to visualize spatial distributions, estimate species ranges, and assess trends in abundance and recapture rates over time. 
+
+**The chickadee species included are as follows:**  
+* Black-Capped Chickadee (BCCH)  
+* Boreal Chickadee (BOCH)  
+* Carolina Chickadee (CACH)  
+* Chestnut-Backed Chickadee (CBCH)  
+* Mountain Chickadee (MOCH)  
+* Carolina x Black-Capped Hybrid (CBCC)  
+
+________________________________________________________________________________
+## Data Cleaning and Preparation  
+
+
+##### The original data sets required cleaning and filtering to only contain the data necessary for the analysis.
+
+##### Load in capture and location data sets, join, and clean:
+  
+```{r}
+capture_data <- read_csv("MAPS_BANDING_capture_data.csv")
+location_data <- read_csv("MAPS_STATION_location_and_operations.csv")
+
+joined_data <- left_join(capture_data, location_data, by = c("LOC", "STA", "STATION"))
+
+dat <- joined_data %>% 
+  select(LATITUDE, LONGITUDE, LOC, STA, STATION, DATE, C, BAND, SPEC, AGE, SEX, 
+         F, STATUS) %>% 
+  rename(latitude = LATITUDE, longitude = LONGITUDE, location = LOC, station_num 
+         = STA, station_code = STATION, date = DATE, capture_code = C, band_num 
+         = BAND, species = SPEC, age = AGE, sex = SEX, fat = F, status = STATUS)
+```
+
+
+##### Convert latitude and longitude from degrees minutes seconds (DMS) to decimal degrees (DD) for use in later plots: 
+  
+```{r}
+dms_to_dd <- function(dms_str) { 
+  sapply(dms_str, function(x) {
+    parts <- strsplit(x, " ")[[1]]
+    if (length(parts) != 3) return(NA)
+    deg <- as.numeric(parts[1])
+    min <- as.numeric(parts[2])
+    sec <- as.numeric(parts[3])
+    sign <- ifelse(deg < 0, -1, 1)
+    deg <- abs(deg)
+    sign * (deg + min / 60 + sec / 3600)
+  })
+}
+
+dat$latitude <- dms_to_dd(dat$latitude)
+dat$longitude <- dms_to_dd(dat$longitude)
+```
+
+```{r include=FALSE}
+dat <- dat %>%
+  mutate(date = as.Date(date),
+         year = year(date),
+         month = month(date),
+         day = day(date)) %>%
+  filter(!is.na(latitude), !is.na(longitude))
+```
+________________________________________________________________________________
+# Species Distribution Maps
+##### Below is a scatter plot of all recorded captures of each Chickadee species from the beginning of the MAPS project. Because each MAPS banding station is used year after year and does not change location, individual points are stacked on top of each other - **jittering** was used to allow for more points to be seen.
+##### Although incomplete, you can start to see the species distributions.
+```{r Distribution Maps Preparation, include=FALSE}
+map_world <- map_data("world")
+north_america <- map_world %>% filter(region %in% c("USA", "Canada"))
+
+color_palette <- c(
+  "BCCH" = "#F0E442", "BOCH" = "#56B4E9", "CACH" = "#009E73", 
+  "CBCC" = "hotpink", "CBCH" = "#0072B2", "MOCH" = "#D55E09"
+)
+
+# remove NA from necessary columns
+dat_latlong <- dat %>%
+  filter(!is.na(longitude), !is.na(latitude))
+```
+
+
+```{r Scatter Plot of all Captures, echo=FALSE}
+ggplot() +
+  # create base map 
+  geom_polygon(data = north_america, aes(x = long, y = lat, group = group),
+               fill = "gray95", color = "gray70") +
+  # jitter points to avoid overlapping points (MAPS stations are stationary)
+  geom_jitter(data = dat_latlong,
+              aes(x = longitude, y = latitude, fill = species),
+              shape = 21, size = 3.5,
+              alpha = 0.2, stroke = 0.3,
+              color = "black", width = 0.2, height = 0.2) +
+  coord_cartesian(xlim = c(-175, -50), ylim = c(25, 75)) +
+  labs(x = "Longitude", y = "Latitude", title = "Scatter Plot of all Chickadee Captures") +
+  theme_minimal() +
+  guides(fill = guide_legend(override.aes = list(alpha = 1, size = 5))) +
+  scale_fill_manual(values = color_palette) +
+  theme(plot.title = element_text(size = 20),
+        axis.title = element_text(size = 15))
+```
+
+________________________________________________________________________________  
+
+##### Below is a hexbin density map that is faceted by species and shows the count density and location of each species for all captures.
+##### Species ranges and distributions are easier to pick apart from this plot.
+
+
+```{r Faceted Hexbin Density Map, echo=FALSE}
+ggplot() +
+  geom_polygon(data = north_america, aes(x = long, y = lat, group = group),
+               fill = "gray90", color = "gray70") +
+  geom_hex(data = dat_latlong,
+           aes(x = longitude, y = latitude, fill = ..count..),
+           bins = 70, alpha = 0.7) +
+  labs(x = "Longitude", y = "Latitude", title = "Faceted Hexbin Density Map of Chickadee Captures") +
+  scale_fill_viridis_c(option = "plasma") +
+  coord_cartesian(xlim = c(-175, -50), ylim = c(25, 75)) +
+  facet_wrap(~species) +
+  theme_minimal() +
+  theme(plot.title = element_text(size = 20),
+        axis.title = element_text(size = 15))
+```
+
+
+##### Here is an animated version of the faceted hexbin density map to show changes over time.
+```{r Animated Range Over Time, include=FALSE}
+dat_year <- dat %>% filter(!is.na(year)) %>%
+  mutate(year = as.integer(year))
+
+anim_plot <- ggplot() +
+  geom_polygon(data = north_america, aes(x = long, y = lat, group = group),
+               fill = "gray95", color = "gray70") +
+  geom_hex(data = dat_year,
+           aes(x = longitude, y = latitude, fill = ..count..),
+           bins = 70, alpha = 0.7) +
+  scale_fill_viridis_c(option = "plasma") +
+  coord_cartesian(xlim = c(-180, -50), ylim = c(25, 75)) +
+  facet_wrap(~species) +
+  theme_minimal(base_size = 14) +
+  labs(title = 'Year: {current_frame}', 
+       subtitle = 'Animated Faceted Hexbin Density Map of Chickadee Captures',
+       fill = "Capture Count",
+       x = "Longitude",
+       y = "Latitude") +
+  transition_manual(year) +
+  theme(plot.title = element_text(size = 20),
+        axis.title = element_text(size = 15))
+```
+```{r Animate, echo=FALSE}
+# Animate
+animate(anim_plot, nframes = 100, fps = 5)
+```
+________________________________________________________________________________
+
+## Range Estimation Using Hulls
+##### Hull plots can be useful for showing species range and distribution, but does not show trends over time or comparisons in species abundance.
+##### Below is a simple hull plot showing approximate species ranges. This plot is over simplified and does not show nuance.
+
+```{r echo=FALSE}
+# high contrast and color blind friendly palette
+high_contrast <- c(
+  "#EE7733", "#0077BB", "#33BBEE", "#009988",
+  "#CC3311", "#EE3377"
+)
+# Compute convex hulls
+hulls <- dat_latlong %>%
+  group_by(species) %>%
+  filter(n() >= 3) %>%  # chull requires at least 3 points
+  slice(chull(longitude, latitude))
+
+# Plot
+ggplot() +
+  geom_polygon(data = north_america, aes(x = long, y = lat, group = group),
+               fill = "gray95", color = "gray50") +
+  geom_polygon(data = hulls, aes(x = longitude, y = latitude, fill = species, group = species),
+               alpha = 0.7, color = "black") +
+  coord_cartesian(xlim = c(-175, -50), ylim = c(25, 75)) +
+  theme_minimal() +
+  scale_fill_manual(values = high_contrast) +
+  labs(title = "Estimated Chickadee Ranges by Convex Hull",
+       x = "Longitude", y = "Latitude",
+       fill = "Species") +
+  theme(plot.title = element_text(size = 20),
+        axis.title = element_text(size = 15))
+```
+
+##### This alpha hull plot shows more nuance in the shape of species distributions.
+
+```{r echo=FALSE}
+alpha_hulls <- dat_latlong %>%
+  group_by(species) %>%
+  filter(n() >= 3) %>%
+  group_split() %>%
+  map_dfr(~ {
+    # Extract longitude and latitude as a matrix
+    hull <- concaveman(as.matrix(.x[, c("longitude", "latitude")]))
+    
+    # Convert the hull result to a data frame
+    hull_df <- data.frame(longitude = hull[, 1], latitude = hull[, 2], species = unique(.x$species))
+    
+    return(hull_df)
+  })
+
+# Plot
+ggplot() +
+  geom_polygon(data = north_america, aes(x = long, y = lat, group = group),
+               fill = "gray95", color = "gray50") +
+  geom_polygon(data = alpha_hulls, aes(x = longitude, y = latitude, fill = species, group = species),
+               alpha = 0.7, color = "black") +
+  coord_cartesian(xlim = c(-175, -50), ylim = c(25, 75)) +
+  theme_minimal() +
+  scale_fill_manual(values = high_contrast) +
+  labs(title = "Estimated Chickadee Ranges by Concave Hull (Alpha Shape)",
+       x = "Longitude", y = "Latitude",
+       fill = "Species", color = "Species") +
+  theme(plot.title = element_text(size = 20),
+        axis.title = element_text(size = 15))
+```
+
+________________________________________________________________________________
+## Species Trends Over Time
+
+##### Below shows the proportional abundance of chickadees over time. 
+```{r echo=FALSE}
+species_year_props <- dat %>%
+  group_by(year, species) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  group_by(year) %>%
+  mutate(prop = n / sum(n))
+
+ggplot(species_year_props, aes(x = year, y = prop, fill = species)) +
+  geom_area() +
+  labs(
+    y = "Proportion",
+    title = "Proportional Abundance of Chickadee Species Over Time",
+    x = "Year", y = "Proportion") +
+  theme_minimal() +
+  scale_fill_manual(values = color_palette) +
+  theme(plot.title = element_text(size = 20),
+        axis.title = element_text(size = 15))
+```
+
+##### Below shows the chickadee species counts over time.
+```{r echo=FALSE}
+species_year_counts <- dat %>%
+  group_by(year, species) %>%
+  summarise(count = n(), .groups = "drop")
+
+ggplot(species_year_counts, aes(x = year, y = count, fill = species)) +
+  geom_area() +
+  labs(
+    title = "Chickadee Species Counts Over Time",
+    x = "Year",
+    y = "Count",
+    fill = "Species"
+  ) +
+  theme_minimal() +
+  scale_fill_manual(values = color_palette) +
+  theme(plot.title = element_text(size = 20),
+        axis.title = element_text(size = 15))
+```
+
+
+##### Below shows the recaptured chickadee species counts over time. 
+##### Notice how this plot closely resembles the previous plot.
+```{r echo=FALSE}
+# identify band codes that were recaptured at least once
+recaptured_ids <- dat %>%
+  filter(capture_code == "R") %>%
+  distinct(band_num)
+
+# create new variable if a bird was ever recaptured 
+dat <- dat %>%
+  mutate(ever_recaptured = ifelse(band_num %in% recaptured_ids$band_num, "Recaptured", "Not Recaptured"))
+
+# find the first capture event
+first_capture_of_recaptures <- dat %>%
+  semi_join(recaptured_ids, by = "band_num") %>%  # Only birds that were recaptured
+  group_by(band_num) %>%
+  slice_min(order_by = year, n = 1, with_ties = FALSE) %>%  # Get first capture per bird
+  ungroup()
+
+# count by species and year
+recaptured_unique_counts <- first_capture_of_recaptures %>%
+  group_by(year, species) %>%
+  summarise(unique_recaptures = n(), .groups = "drop")
+# plot
+ggplot(recaptured_unique_counts, aes(x = year, y = unique_recaptures, fill = species)) +
+  geom_area() +
+  labs(
+    title = "Unique Recaptured Chickadees by Species Over Time",
+    x = "Year",
+    y = "Count of Recaptured Individuals",
+    fill = "Species"
+  ) +
+  theme_minimal() +
+  scale_fill_manual(values = color_palette) +
+  theme(plot.title = element_text(size = 20),
+        axis.title = element_text(size = 15))
+```
+
+________________________________________________________________________________    
+ 
+## Results and Discussion
+
+From the analysis above, we can conclude that the chickadee range distributions are as follows:  
+  
+  
+* Black-Capped Chickadee (BCCH):   
+    + widespread throughout most of the continental US and areas of Canada. 
+* Boreal Chickadee (BOCH):   
+    + sparsely spread throughout Canada and northeastern US.
+* Carolina Chickadee (CACH):   
+    + densely confined to the southeastern and central US.
+* Chestnut-Backed Chickadee (CBCH):  
+    + closely follows the western coast of US and parts of Canada.
+* Mountain Chickadee (MOCH):
+    + spread throughout the western US and a bit of Canada. Appears to follow main mountain ranges in the west.
+* Carolina x Black-Capped Hybrid (CBCC):  
+    + very sparsely noted in the Midwest/eastern US.
+    
+  
+  
+  
+Important consideration:
+This analysis is performed on a data set that captures birds at stationary locations, meaning that bird movement is not monitored outside of these set locations. This also means that observations are clustered at predetermined stations and not representative of Chickadee movement and natural ranges. This can only be used as an estimate.  
+  
+  
+If I were to continue working on this project, I would create models that explore the different demographic and health variables that contribute to whether a chickadee is recaptured or not.
