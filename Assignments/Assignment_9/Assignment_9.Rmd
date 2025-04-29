@@ -1,44 +1,104 @@
 ---
+title: "Grad School Admissions Analysis"
+author: "Bailey Hatcher"
 output: 
 html_document:
   number_sections=TRUE
-pagetitle: Assignment_9
 ---
-
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# **Assignment 9**
+I will be looking at and using the GradSchool_Admissions.csv dataset for my analysis.  
+First, we need to load in the necessary libraries:
 
-In this assignment, you will use R (within R-Studio) to:
-  
-+ Load and clean a real data set
-+ Conduct exploratory analyses, including informative figures
-+ Build and test appropriate models
-+ Draw conclusions about your data
-+ Combine all of the above into a well-documented R-Markdown report and export (knit) it into an HTML file
+```{r echo=TRUE}
+library(tidyverse)
+library(ggplot2) 
+library(broom)
+library(performance)
+```
 
-**All file paths should be relative, starting from *your* Assignment_9 directory!!**
+Now we can load in the data set and take a look at its structure:
+```{r}
+dat <- read.csv("../../Data/GradSchool_Admissions.csv")
 
-**This means that you need to create a new R-Project named "Assignment_9.Rproj" in your Assignment_9 directory, and work from scripts within that.**
+str(dat)
+```
+The data does not need much cleaning, but rank and admit should be treated as factor instead of integer. It would also be helpful to create a new column called admit_label that tells us whether they got accepted or rejected.
 
 
-## **For credit...**
+```{r}
+# change columns to factor
+dat$rank <- as.factor(dat$rank)
+dat$admit <- as.factor(dat$admit)
 
-1.  Push a completed version of your Rproj and R-markdown file (details at end of this assignment) to GitHub
-2.  Your score will also depend on your analyses and presentation of your final report
+# create a new column called admit_label
+dat <- dat %>% 
+  mutate(admit_label = ifelse(admit == 1, "accept", "reject"))
+```
 
-____________
+Because admit is binary (1 = accept, 0 = reject), we should use logistic regression for modeling. Below are the eight models that I decided to build:
+```{r echo=TRUE}
+# Model 1:
+mod1 <- glm(admit ~ gre, data = dat, family = "binomial")
 
-# Your tasks:
+# Model 2: 
+mod2 <- glm(admit ~ gpa, data = dat, family = "binomial")
 
-+ Use the data set "/Data/GradSchool_Admissions.csv"
-+ You will explore and model the predictors of graduate school admission
-  - the "admit" column is coded as 1=success and 0=failure (that's binary, so model appropriately)
-  - the other columns are the GRE score, the GPA, and the rank of the undergraduate institution, where I is "top-tier."
-+ Document your data explorations, figures, and conclusions in a reproducible R-markdown report
-+ That means I want to see, in your html report, your process of model evaluation and selection. Here's an [example](https://gzahn.github.io/data-course/Repository/Assignments/Assignment_9/example.html){target="_blank"}
-+ Upload your **self-contained** R project, including knitted HTML report, to GitHub in *your* Assignment_9 directory
+# Model 3:
+mod3 <- glm(admit ~ rank, data = dat, family = "binomial")
+
+# Model 4:
+mod4 <- glm(admit ~ gre + gpa, data = dat, family = "binomial")
+
+# Model 5:
+mod5 <- glm(admit ~ gre + gpa + rank, data = dat, family = "binomial")
+
+# Model 6:
+mod6 <- glm(admit ~ gre * gpa + rank, data = dat, family = "binomial")
+
+# Model 7:
+mod7 <- glm(admit ~ gre + gpa * rank, data = dat, family = "binomial")
+
+# Model 8:
+mod8 <- glm(admit ~ gre * rank + gpa, data = dat, family = "binomial")
+
+```
+
+Now we can calculate the predicted probabilities of being accepted based on each model and add those values to the dataset:
+
+```{r}
+dat$pred_1 <- predict(mod1, dat, type = 'response')
+dat$pred_2 <- predict(mod2, dat, type = 'response')
+dat$pred_3 <- predict(mod3, dat, type = 'response')
+dat$pred_4 <- predict(mod4, dat, type = 'response')
+dat$pred_5 <- predict(mod5, dat, type = 'response')
+dat$pred_6 <- predict(mod6, dat, type = 'response')
+dat$pred_7 <- predict(mod7, dat, type = 'response')
+dat$pred_8 <- predict(mod8, dat, type = 'response')
+
+```
+
+We can use the compare_performance() function from the performance package to compare the different models. First, we compare the models that include only a single independent variable. From this, we can conclude that rank has the greatest predictive power of acceptance or denial out of the single independent variable models. 
+```{r}
+compare_performance(mod1, mod2, mod3) %>% plot()
+```
+
+Now we compare the more complex models. From this, we can conclude that model 6 (admit ~ gre * gpa + rank) is the best fit model showing gpa, gre, and rank as the main effects with an interaction between gre and gpa. 
+
+```{r}
+compare_performance(mod4, mod5, mod6, mod7, mod8) %>% plot()
+```
+
+To confirm that model 6 is the best fit model, we plot the performance comparisons of every model. This confirms that model 6 is the best fit.
+```{r}
+compare_performance(mod1, mod2, mod3, mod4, mod5, mod6, mod7, mod8) %>% plot()
+```
+
+
+
+
+
 
